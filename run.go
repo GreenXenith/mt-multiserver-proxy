@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -45,17 +46,34 @@ func runFunc() {
 		log.Fatal("invalid auth backend")
 	}
 
-	addr, err := net.ResolveUDPAddr("udp", Conf().BindAddr)
+	// TCP Server (RPC)
+	tcp_addr, err := net.ResolveTCPAddr("tcp", Conf().BindAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	pc, err := net.ListenUDP("udp", addr)
+	lt, err := net.ListenTCP("tcp", tcp_addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer lt.Close()
+
+	go func() {
+		http.Serve(lt, nil)
+	}()
+
+	// UDP Server (Minetest)
+	udp_addr, err := net.ResolveUDPAddr("udp", Conf().BindAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	l := listen(pc)
+	udpc, err := net.ListenUDP("udp", udp_addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	l := listen(udpc)
 	defer l.Close()
 
 	log.Println("listen", l.Addr())
